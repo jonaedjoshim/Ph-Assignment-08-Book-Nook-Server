@@ -19,5 +19,13 @@ export const updateBookSchema = createBookSchema
     message: "At least one field must be provided.",
   });
 
+export const listBooksQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(12),
+  category: z.enum(BOOK_CATEGORIES).optional(),
+  search: z.string().trim().max(100).optional(),
+});
+
 export type CreateBookInput = z.infer<typeof createBookSchema>;
 export type UpdateBookInput = z.infer<typeof updateBookSchema>;
+export type ListBooksQuery = z.infer<typeof listBooksQuerySchema>;

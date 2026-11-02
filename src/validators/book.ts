@@ -24,6 +24,7 @@ export const listBooksQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(12),
   category: z.enum(BOOK_CATEGORIES).optional(),
   search: z.string().trim().max(100).optional(),
+  mine: z.enum(["true", "false"]).optional(),
 });
 
 export type CreateBookInput = z.infer<typeof createBookSchema>;

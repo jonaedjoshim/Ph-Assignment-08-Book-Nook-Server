@@ -121,7 +121,7 @@ export const listBooks: RequestHandler = async (req, res) => {
     return;
   }
 
-  const { page, limit, category, search } = parsedQuery.data;
+  const { page, limit, category, search, mine } = parsedQuery.data;
   const filter: Filter<BookDocument> = {};
 
   if (category) {
@@ -130,6 +130,20 @@ export const listBooks: RequestHandler = async (req, res) => {
 
   if (search) {
     filter.$text = { $search: search };
+  }
+
+  if (mine === "true") {
+    const userId = req.authUser?.userId;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: "Sign in is required to view your books.",
+      });
+      return;
+    }
+
+    filter["createdBy.userId"] = userId;
   }
 
   try {

@@ -1,3 +1,4 @@
+import type { RequestHandler } from "express";
 import { Router } from "express";
 
 import {
@@ -11,7 +12,16 @@ import { requireAuth } from "../middleware/require-auth.js";
 
 const router = Router();
 
-router.get("/", listBooks);
+const authenticateMyBooksRequest: RequestHandler = (req, res, next) => {
+  if (req.query.mine !== "true") {
+    next();
+    return;
+  }
+
+  Promise.resolve(requireAuth(req, res, next)).catch(next);
+};
+
+router.get("/", authenticateMyBooksRequest, listBooks);
 router.get("/:id", getBookById);
 
 router.post("/", requireAuth, createBook);

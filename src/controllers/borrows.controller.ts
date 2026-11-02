@@ -1,8 +1,4 @@
-import type {
-  ClientSession,
-  MongoClient,
-  ObjectId as MongoObjectId,
-} from "mongodb";
+import type { ClientSession, MongoClient } from "mongodb";
 import { ObjectId } from "mongodb";
 import type { Request, RequestHandler, Response } from "express";
 
@@ -21,7 +17,7 @@ type BorrowStatus = "active" | "returned";
 
 type BorrowDocument = {
   _id: ObjectId;
-  bookId: string;
+  bookId: ObjectId;
   bookTitle: string;
   bookImageUrl: string;
   userId: string;
@@ -135,6 +131,7 @@ function toPublicBorrow(borrow: BorrowDocument) {
     ...borrow,
     _id: id,
     id,
+    bookId: borrow.bookId.toHexString(),
   };
 }
 
@@ -161,7 +158,8 @@ function sendError(
     return;
   }
 
-  console.error("[BookNook] Borrow API error:", error);
+  console.error("[BookNook] Borrow API error:");
+  console.dir(error, { depth: null });
 
   response.status(500).json({
     message: fallbackMessage,
@@ -221,7 +219,7 @@ export const createBorrow: RequestHandler = async (request, response) => {
     await session.withTransaction(async () => {
       const existingBorrow = await borrows.findOne(
         {
-          bookId: bookIdValue,
+          bookId: bookObjectId,
           userId: identity.userId,
           status: "active",
         },
@@ -265,7 +263,7 @@ export const createBorrow: RequestHandler = async (request, response) => {
 
       const borrow: BorrowDocument = {
         _id: borrowId,
-        bookId: bookIdValue,
+        bookId: bookObjectId,
         bookTitle: updatedBook.title,
         bookImageUrl: updatedBook.imageUrl,
         userId: identity.userId,
@@ -300,9 +298,9 @@ export const getMyBorrows: RequestHandler = async (request, response) => {
   const identity = getAuthenticatedIdentity(request);
 
   if (!identity) {
-    response
-      .status(401)
-      .json({ message: "Please log in to view your borrows." });
+    response.status(401).json({
+      message: "Please log in to view your borrows.",
+    });
     return;
   }
 
@@ -327,7 +325,9 @@ export const returnBorrow: RequestHandler = async (request, response) => {
   const identity = getAuthenticatedIdentity(request);
 
   if (!identity) {
-    response.status(401).json({ message: "Please log in to return a book." });
+    response.status(401).json({
+      message: "Please log in to return a book.",
+    });
     return;
   }
 
@@ -392,13 +392,9 @@ export const returnBorrow: RequestHandler = async (request, response) => {
         throw new ApiError(409, "This book has already been returned.");
       }
 
-      if (!/^[a-f\d]{24}$/i.test(activeBorrow.bookId)) {
-        throw new Error("The borrow record contains an invalid book id.");
-      }
-
       const bookResult = await books.updateOne(
         {
-          _id: new ObjectId(activeBorrow.bookId),
+          _id: activeBorrow.bookId,
           $expr: { $lt: ["$availableCopies", "$totalCopies"] },
         },
         {

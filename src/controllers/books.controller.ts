@@ -3,7 +3,7 @@ import { ObjectId, type Filter, type WithId } from "mongodb";
 
 import { getBooksCollection } from "../lib/mongodb.js";
 import type { BookDocument } from "../types/book.js";
-import { listBooksQuerySchema } from "../validators/book.js";
+import { createBookSchema, listBooksQuerySchema } from "../validators/book.js";
 
 function serializeBook(book: WithId<BookDocument>) {
   return {
@@ -23,6 +23,75 @@ function serializeBook(book: WithId<BookDocument>) {
     updatedAt: book.updatedAt.toISOString(),
   };
 }
+
+export const createBook: RequestHandler = async (req, res) => {
+  const user = req.authUser;
+
+  if (!user?.userId) {
+    res.status(401).json({
+      success: false,
+      message: "Sign in is required to add a book.",
+    });
+    return;
+  }
+
+  if (!user.email) {
+    res.status(403).json({
+      success: false,
+      message:
+        "The access token does not include your email. Please sign in again.",
+    });
+    return;
+  }
+
+  const parsedBody = createBookSchema.safeParse(req.body);
+
+  if (!parsedBody.success) {
+    res.status(400).json({
+      success: false,
+      message: "Invalid book information.",
+      errors: parsedBody.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      })),
+    });
+    return;
+  }
+
+  try {
+    const now = new Date();
+    const email = user.email.trim();
+    const book: BookDocument = {
+      ...parsedBody.data,
+      availableCopies: parsedBody.data.totalCopies,
+      createdBy: {
+        userId: user.userId,
+        name: user.name?.trim() || email.split("@")[0] || "BookNook Reader",
+        email,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const result = await getBooksCollection().insertOne(book);
+
+    res.status(201).json({
+      success: true,
+      message: "Book added successfully.",
+      data: serializeBook({
+        ...book,
+        _id: result.insertedId,
+      }),
+    });
+  } catch (error) {
+    console.error("Failed to create book:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to add the book.",
+    });
+  }
+};
 
 export const listBooks: RequestHandler = async (req, res) => {
   const parsedQuery = listBooksQuerySchema.safeParse(req.query);
